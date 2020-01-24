@@ -1,46 +1,95 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-var app = {
-    // Application Constructor
-    initialize: function() {
-        document.addEventListener('deviceready', this.onDeviceReady.bind(this), false);
-    },
+const app = document.querySelector('.app');
+const message = document.querySelector('.message');
+const btn = document.querySelector('.btn');
 
-    // deviceready Event Handler
-    //
-    // Bind any cordova events here. Common events are:
-    // 'pause', 'resume', etc.
-    onDeviceReady: function() {
-        this.receivedEvent('deviceready');
-    },
+const btnTexts = {
+    ready: 'Load Image',
+    loaded: 'Save Image',
+};
+    
+const messageTexts = {
+    ready: 'Device is Ready',
+    loading: 'Loading Image',
+    loaded: 'Image Loaded',
+    saving: 'Saving Image',
+    saved: 'Image Saved',
+};
 
-    // Update DOM on a Received Event
-    receivedEvent: function(id) {
-        var parentElement = document.getElementById(id);
-        var listeningElement = parentElement.querySelector('.listening');
-        var receivedElement = parentElement.querySelector('.received');
-
-        listeningElement.setAttribute('style', 'display:none;');
-        receivedElement.setAttribute('style', 'display:block;');
-
-        console.log('Received Event: ' + id);
+const setUI = state => {
+    const btnText = btnTexts[state];
+    const messageText = messageTexts[state];
+    
+    if (btnText) {
+        btn.hidden = false;
+        btn.textContent = btnText;
+    } else {
+        btn.hidden = true;
+    }
+    
+    if (messageText) {
+        message.hidden = false;
+        message.textContent = messageText;
+    } else {
+        message.hidden = true;
     }
 };
 
-app.initialize();
+const load = (url, callback) => {
+    const loader = new XMLHttpRequest();
+    loader.onload = () => callback(loader.response);
+    loader.open('GET', url, true);
+    loader.responseType = 'blob';
+    loader.send();
+};
+
+const save = (blob, filename, callback) => {
+    const onErrorHandler = e => console.error('file save error ', filename, e);
+
+    window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory, dirEntry => {
+        dirEntry.getFile(filename, { create: true, exclusive: false }, fileEntry => {
+            fileEntry.createWriter(fileWriter => {
+                fileWriter.onwriteend = callback;
+                fileWriter.onerror = onErrorHandler;
+                fileWriter.write(blob);
+            }, onErrorHandler);
+        }, onErrorHandler);
+    }, onErrorHandler);
+};
+
+const rafHandler = () => {
+    const rotation =  Number(app.style.getPropertyValue('--rotation'));
+    app.style.setProperty('--rotation', rotation + 1);
+
+    requestAnimationFrame(rafHandler);
+};
+
+const onLoadBtnClick = () => {
+    btn.removeEventListener('click', onLoadBtnClick);
+    setUI('loading');
+
+    load('https://rigwarl.github.io/cordova-file-freeze/test-image-9mb.png', (response) => {
+        setUI('loaded');
+
+        const onSaveBtnClick = () => {
+            btn.removeEventListener('click', onSaveBtnClick);
+            setUI('saving');
+            save(response, 'test-image-9mb.png', () => {
+                setUI('saved');
+                setTimeout(() => {
+                    setUI('ready');
+                    btn.addEventListener('click', onLoadBtnClick);
+                }, 3000);
+            });
+        };
+
+        btn.addEventListener('click', onSaveBtnClick);
+    });
+};
+
+const init = () => {
+    setUI('ready');
+    btn.addEventListener('click', onLoadBtnClick);
+};
+
+document.addEventListener('deviceready', init);
+requestAnimationFrame(rafHandler);
